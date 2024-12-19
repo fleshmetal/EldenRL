@@ -2,7 +2,9 @@ import cv2
 import gym
 import mss
 import time
+import pygetwindow as gw
 import numpy as np
+import pyautogui
 from gym import spaces
 import pydirectinput
 import pytesseract                              # Pytesseract is not just a simple pip install.
@@ -100,22 +102,46 @@ class EldenEnv(gym.Env):
                 oneHot[i][actions[-(i + 1)]][0] = 1
         #print(oneHot)
         return oneHot 
-
-
-    '''Grabbing a screenshot of the game'''
-    def grab_screen_shot(self):
-        monitor = self.sct.monitors[self.MONITOR]
-        sct_img = self.sct.grab(monitor)
-        frame = cv2.cvtColor(np.asarray(sct_img), cv2.COLOR_BGRA2RGB)
-        frame = frame[46:IMG_HEIGHT + 46, 12:IMG_WIDTH + 12]    #cut the frame to the size of the game
-        if self.DEBUG_MODE:
-            self.render_frame(frame)
-        return frame
     
 
+
+    def grab_screen_shot(self, border_offset=(0, 0)):
+        """
+        Grab a screenshot of the a windowed Elden Ring game window, clipping borders in the process.
+
+        Args:
+            border_offset: (border_thickness, title_bar_height) offsets to crop borders. Default is 0 and 0.  
+        
+        Returns:
+            frame: Cropped and formatted game window frame.
+        """
+
+        window = gw.getWindowsWithTitle("Elden Ring")[0]  # Find the window
+        xy = (window.left, window.top)
+        wh = (window.width, window.height)
+
+
+        monitor = {
+            "top": int(xy[1] - border_offset[1]),
+            "left": int(xy[0]),
+            "width": int(wh[0]),
+            "height": int(wh[1] - border_offset[1]),
+        }
+
+        sct_img = self.sct.grab(monitor)
+        frame = cv2.cvtColor(np.asarray(sct_img), cv2.COLOR_BGRA2RGB)
+        frame = frame[30:IMG_HEIGHT + 30, 12:IMG_WIDTH + 12]    #cut the frame to the size of the game
+
+        # TODO:
+        # This is super janky. Need to make it not screen refresh every 2.4 seconds. Could a handshake to hold or waittime  
+        # if self.DEBUG_MODE:
+        #     self.render_frame(frame)
+
+        return frame
+    
     '''Rendering the frame for debugging'''
     def render_frame(self, frame):                
-        cv2.imshow('debug-render', frame)
+        # cv2.imshow('debug-render', frame)
         cv2.waitKey(100)
         cv2.destroyAllWindows()
         
@@ -320,22 +346,28 @@ class EldenEnv(gym.Env):
                                                         #continue waiting for loading screen (matchmaking)
         
 
-    '''Checking if we are in a loading screen'''
     def check_for_loading_screen(self, frame):
-        #The way we determine if we are in a loading screen is by checking if the text "next" is in the bottom left corner of the screen. If it is we are in a loading screen. If it is not we are not in a loading screen.
-        next_text_image = frame[1015:1040, 155:205] #Cutting the frame to the location of the text "next" (bottom left corner)
+
+        next_text_image = frame[1015:1040, 150:200]
         next_text_image = cv2.resize(next_text_image, ((205-155)*3, (1040-1015)*3))
-        lower = np.array([0,0,75])                  #Removing color from the image
-        upper = np.array([255,255,255])
+        
+        # Removing color from the image
+        lower = np.array([0, 0, 75]) 
+        upper = np.array([255, 255, 255])
         hsv = cv2.cvtColor(next_text_image, cv2.COLOR_RGB2HSV)
         mask = cv2.inRange(hsv, lower, upper)
-        pytesseract_output = pytesseract.image_to_string(mask,  lang='eng',config='--psm 6 --oem 3') #reading text from the image cut out
-        in_loading_screen = "Next" in pytesseract_output or "next" in pytesseract_output             #Boolean if we see "next" in the text
         
+        pytesseract_output = pytesseract.image_to_string(mask, lang='eng', config='--psm 6 --oem 3')
+        in_loading_screen = "Next" in pytesseract_output or "next" in pytesseract_output
+
         if self.DEBUG_MODE:
-            matches = np.argwhere(mask==255)
-            percent_match = len(matches) / (mask.shape[0] * mask.shape[1])
-            print(percent_match)
+
+            matches = np.argwhere(mask == 255)
+            percent_match = len(matches) / (mask.shape[0] * mask.shape[1])  # percent match
+            print("Frame accuracy match:", percent_match)
+
+            cv2.imshow("Debug Loading Screen Check", mask)
+            cv2.waitKey(1)
 
         return in_loading_screen
         
@@ -356,6 +388,7 @@ class EldenEnv(gym.Env):
         
         '''Grabbing variables'''
         t_start = time.time()    #Start time of this step
+
         frame = self.grab_screen_shot()                                         #📍 1. Collect the current observation
         self.reward, self.death, self.boss_death, self.duel_won = self.rewardGen.update(frame, self.first_step) #📍 2. Collect the reward based on the observation (reward of previous step)
         
@@ -394,7 +427,7 @@ class EldenEnv(gym.Env):
         '''Return values'''
         info = {}                                                       #Empty info for gym
         observation = cv2.resize(frame, (MODEL_WIDTH, MODEL_HEIGHT))    #We resize the frame so the agent dosnt have to deal with a 1920x1080 image (400x225)
-        if self.DEBUG_MODE: self.render_frame(observation)              #🐜 If we are in debug mode we render the frame
+        # if self.DEBUG_MODE: self.render_frame(observation)              #🐜 If we are in debug mode we render the frame
         if self.max_reward is None:                                     #Max reward
             self.max_reward = self.reward
         elif self.max_reward < self.reward:

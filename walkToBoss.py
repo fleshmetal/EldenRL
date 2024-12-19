@@ -83,7 +83,7 @@ class walkToBoss:
 
         '''2 Beastman of Farum Azula'''
         def boss2(self):
-                self.put_on_lantern()
+                # self.put_on_lantern()
                 print("👉👹 walking #0 from the bonfire")
                 pydirectinput.keyDown('w')
                 pydirectinput.keyDown('a')

@@ -31,25 +31,35 @@ class EldenReward:
 
     '''Detecting the current player hp'''
     def get_current_hp(self, frame):
-        HP_RATIO = 0.403                                                        #Constant to calculate the length of the hp bar
-        hp_image = frame[51:53, 155:155 + int(self.max_hp * HP_RATIO) - 20]     #Cut out the hp bar from the frame
-        if self.DEBUG_MODE: self.render_frame(hp_image)
-        
-        lower = np.array([0,90,75])                                             #Filter the image for the correct shade of red
-        upper = np.array([150,255,125])                                         #Also Filter
-        hsv = cv2.cvtColor(hp_image, cv2.COLOR_RGB2HSV)                         #Apply the filter
-        mask = cv2.inRange(hsv, lower, upper)                                   #Also apply
-        if self.DEBUG_MODE: self.render_frame(mask)
+        HP_RATIO = 0.403                                                        # Constant to calculate the length of the hp bar
+        hp_image = frame[51:53, 150:150 + int(self.max_hp * HP_RATIO) - 20]     # Cut out the hp bar from the frame
+        if self.DEBUG_MODE: 
+            self.render_frame(hp_image)
+            
+        lower = np.array([0, 90, 75])                                           # Filter the image for the correct shade of red
+        upper = np.array([150, 255, 125])                                       # Also Filter
+        hsv = cv2.cvtColor(hp_image, cv2.COLOR_RGB2HSV)                         # Apply the filter
+        mask = cv2.inRange(hsv, lower, upper)                                   # Also apply
+        if self.DEBUG_MODE: 
+            self.render_frame(mask)
 
-        matches = np.argwhere(mask==255)                                        #Number for all the white pixels in the mask
-        curr_hp = len(matches) / (hp_image.shape[1] * hp_image.shape[0])        #Calculating percent of white pixels in the mask (current hp in percent)
+        matches = np.argwhere(mask == 255)                                      # Number for all the white pixels in the mask
+        curr_hp = len(matches) / (hp_image.shape[1] * hp_image.shape[0])        # Calculating percent of white pixels in the mask (current hp in percent)
 
-        curr_hp += 0.02         #Adding +2% of hp for color noise
+        curr_hp += 0.02  # Adding +2% of hp for color noise
 
-        if curr_hp >= 0.96:     #If the hp is above 96% we set it to 100% (also color noise fix)
+        if curr_hp >= 0.96:  # If the hp is above 96% we set it to 100% (also color noise fix)
             curr_hp = 1.0
 
-        if self.DEBUG_MODE: print('💊 Health: ', curr_hp)
+        if self.DEBUG_MODE: 
+            # Calculate percent match
+            matches = np.argwhere(mask == 255)
+            percent_match = len(matches) / (mask.shape[0] * mask.shape[1])
+            print("Health: ", curr_hp, " | Frame accuracy match: ", percent_match)
+            cv2.imshow("Health Bar Check", mask)
+            cv2.waitKey(5) 
+
+
         return curr_hp
 
 
@@ -74,7 +84,7 @@ class EldenReward:
 
         if self.DEBUG_MODE: print('🏃 Stamina: ', self.curr_stam)
         return self.curr_stam
-    
+
 
     '''Detecting the current boss hp'''
     def get_boss_hp(self, frame):
